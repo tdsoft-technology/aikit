@@ -5,6 +5,7 @@
  * - agents: Manage agents
  * - commands: Manage commands
  * - mode: Manage AIKit mode
+ * - platform: Manage platform toggles (OpenCode/Claude Code)
  * - tools: Manage custom tools
  * - plugins: Manage plugins
  * - memory: Manage persistent memory
@@ -14,11 +15,11 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 
 import { VERSION } from '../../index.js';
-import { loadConfig } from '../../core/config.js';
+import { loadConfig, PlatformType } from '../../core/config.js';
 import { AgentManager } from '../../core/agents.js';
 import { CommandRunner } from '../../core/commands.js';
 import { ToolRegistry } from '../../core/tools.js';
@@ -271,6 +272,154 @@ export function registerBeadsCommand(program: Command): Command {
 }
 
 /**
+ * Register platform command group
+ * Manages which platforms (OpenCode/Claude Code) are enabled
+ */
+export function registerPlatformCommand(program: Command): Command {
+  const platformCmd = program
+    .command('platform')
+    .description('Manage platform toggles (OpenCode/Claude Code)');
+
+  platformCmd
+    .command('status')
+    .description('Show platform configuration status')
+    .action(async () => {
+      const config = await loadConfig();
+      const { platform } = config;
+      const enabledPlatforms = config.getEnabledPlatforms();
+      
+      console.log(chalk.bold('\n🖥️  Platform Configuration:\n'));
+      console.log(`  Primary: ${chalk.cyan(platform.primary)}`);
+      console.log();
+      console.log('  Platforms:');
+      console.log(`    ${platform.opencode ? chalk.green('✓') : chalk.gray('○')} OpenCode   ${platform.opencode ? chalk.green('(enabled)') : chalk.gray('(disabled)')}`);
+      console.log(`    ${platform.claude ? chalk.green('✓') : chalk.gray('○')} Claude Code ${platform.claude ? chalk.green('(enabled)') : chalk.yellow('(archived)')}`);
+      console.log();
+      
+      if (enabledPlatforms.length === 0) {
+        console.log(chalk.yellow('⚠ No platforms enabled! Run "aikit platform enable opencode" to enable.'));
+      } else {
+        console.log(chalk.gray(`Enabled: ${enabledPlatforms.join(', ')}`));
+      }
+      console.log();
+      
+      console.log(chalk.gray('Commands:'));
+      console.log(chalk.gray('  aikit platform enable <platform>   Enable a platform'));
+      console.log(chalk.gray('  aikit platform disable <platform>  Disable a platform'));
+      console.log(chalk.gray('  aikit platform primary <platform>  Set primary platform'));
+      console.log();
+    });
+
+  platformCmd
+    .command('enable <platform>')
+    .description('Enable a platform (opencode, claude)')
+    .action(async (platform: string) => {
+      await togglePlatform(platform as PlatformType, true);
+    });
+
+  platformCmd
+    .command('disable <platform>')
+    .description('Disable a platform (opencode, claude)')
+    .action(async (platform: string) => {
+      await togglePlatform(platform as PlatformType, false);
+    });
+
+  platformCmd
+    .command('primary <platform>')
+    .description('Set primary platform (opencode, claude)')
+    .action(async (platform: string) => {
+      const validPlatforms: PlatformType[] = ['opencode', 'claude'];
+      if (!validPlatforms.includes(platform as PlatformType)) {
+        console.log(chalk.red(`Invalid platform. Available: ${validPlatforms.join(', ')}`));
+        return;
+      }
+      
+      const config = await loadConfig();
+      const configPath = config.configPath;
+      
+      try {
+        let configData: Record<string, unknown> = {};
+        try {
+          configData = JSON.parse(await readFile(join(configPath, 'aikit.json'), 'utf-8'));
+        } catch {
+          // No config file, create new one
+        }
+        
+        if (!configData.platform) {
+          configData.platform = {};
+        }
+        (configData.platform as Record<string, unknown>).primary = platform;
+        
+        // Ensure the primary platform is enabled
+        (configData.platform as Record<string, unknown>)[platform] = true;
+        
+        await mkdir(configPath, { recursive: true });
+        await writeFile(join(configPath, 'aikit.json'), JSON.stringify(configData, null, 2));
+        
+        console.log(chalk.green(`✓ Primary platform set to: ${platform}`));
+        console.log(chalk.gray(`Configuration updated at: ${configPath}/aikit.json`));
+        console.log();
+        console.log(chalk.gray('Run "aikit install" to apply changes.'));
+      } catch (error) {
+        console.log(chalk.red(`Failed to set primary platform: ${error instanceof Error ? error.message : String(error)}`));
+      }
+    });
+
+  return platformCmd;
+}
+
+/**
+ * Helper function to toggle platform enable/disable
+ */
+async function togglePlatform(platform: PlatformType, enable: boolean): Promise<void> {
+  const validPlatforms: PlatformType[] = ['opencode', 'claude'];
+  if (!validPlatforms.includes(platform)) {
+    console.log(chalk.red(`Invalid platform. Available: ${validPlatforms.join(', ')}`));
+    return;
+  }
+  
+  const config = await loadConfig();
+  const configPath = config.configPath;
+  
+  try {
+    let configData: Record<string, unknown> = {};
+    try {
+      configData = JSON.parse(await readFile(join(configPath, 'aikit.json'), 'utf-8'));
+    } catch {
+      // No config file, create new one
+    }
+    
+    if (!configData.platform) {
+      configData.platform = {
+        primary: 'opencode',
+        opencode: true,
+        claude: false,
+      };
+    }
+    
+    (configData.platform as Record<string, unknown>)[platform] = enable;
+    
+    await mkdir(configPath, { recursive: true });
+    await writeFile(join(configPath, 'aikit.json'), JSON.stringify(configData, null, 2));
+    
+    const action = enable ? 'enabled' : 'disabled';
+    const emoji = enable ? '✓' : '○';
+    console.log(chalk.green(`${emoji} Platform ${platform} ${action}`));
+    console.log(chalk.gray(`Configuration updated at: ${configPath}/aikit.json`));
+    console.log();
+    
+    if (enable) {
+      console.log(chalk.gray('Run "aikit install" to install AIKit for this platform.'));
+    } else {
+      console.log(chalk.gray(`Note: Existing ${platform} files will remain but won't be updated.`));
+      console.log(chalk.gray(`Use "aikit platform enable ${platform}" to re-enable later.`));
+    }
+  } catch (error) {
+    console.log(chalk.red(`Failed to ${enable ? 'enable' : 'disable'} platform: ${error instanceof Error ? error.message : String(error)}`));
+  }
+}
+
+/**
  * Register status command
  */
 export function registerStatusCommand(program: Command): void {
@@ -283,6 +432,11 @@ export function registerStatusCommand(program: Command): void {
       try {
         const config = await loadConfig();
         console.log(chalk.green('✓ Configuration loaded'));
+        
+        // Platform status
+        const enabledPlatforms = config.getEnabledPlatforms();
+        console.log(`  Primary Platform: ${chalk.cyan(config.getPrimaryPlatform())}`);
+        console.log(`  Enabled Platforms: ${enabledPlatforms.length > 0 ? enabledPlatforms.join(', ') : chalk.yellow('none')}`);
         
         const skillEngine = new SkillEngine(config);
         const skills = await skillEngine.listSkills();

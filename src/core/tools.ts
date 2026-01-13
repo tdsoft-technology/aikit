@@ -199,7 +199,7 @@ const BUILT_IN_TOOLS: Tool[] = [
         required: true,
       },
     },
-    async execute({ url }, context?: { toolConfigManager?: import('./tool-config.js').ToolConfigManager }) {
+    async execute({ url }, context?: { toolConfigManager?: import('./tool-config.js').ToolConfigManager; config?: Config }) {
       // Validate Figma URL
       if (!url || typeof url !== 'string') {
         return 'Error: Invalid URL provided';
@@ -231,9 +231,21 @@ const BUILT_IN_TOOLS: Tool[] = [
       }
 
       try {
-        // Use Figma MCP client to extract design tokens
+        // Use Figma MCP client to extract design tokens with database persistence
         const { FigmaMcpClient } = await import('./tools/figma-mcp.js');
-        const client = new FigmaMcpClient(apiKey, configManager);
+        
+        // Get database if available
+        let database;
+        try {
+          if (context?.config) {
+            database = context.config.getDatabase();
+          }
+        } catch (error) {
+          // Database disabled or error - continue without persistence
+          logger.info('Database not available for Figma persistence');
+        }
+        
+        const client = new FigmaMcpClient(apiKey, configManager, database);
         
         // Determine assets directory (use project root or current working directory)
         const assetsDir = './assets/images';
@@ -394,22 +406,6 @@ const BUILT_IN_TOOLS: Tool[] = [
     },
   },
   {
-    name: 'analyze_figma',
-    description: 'Analyze a Figma design URL and extract all design tokens automatically. The URL should be provided in the user input after the command.',
-    args: {
-      url: {
-        type: 'string',
-        description: 'Figma design URL to analyze',
-        required: true,
-      },
-    },
-    async execute({ url }) {
-      // This tool will be used by agents to analyze Figma
-      // The actual analysis will be done by @vision agent
-      return `Figma analysis tool called for: ${url}\n\nNext steps:\n1. Use @vision agent to analyze the design\n2. Extract all design tokens\n3. Save to memory/research/figma-analysis.md`;
-    },
-  },
-  {
     name: 'develop_figma_screen',
     description: 'Smart workflow to develop a specific Figma screen: check current code, pull needed assets, plan, and develop. User just needs to confirm the screen number/name.',
     args: {
@@ -424,7 +420,7 @@ const BUILT_IN_TOOLS: Tool[] = [
         required: true,
       },
     },
-    async execute({ figmaUrl, screenId }, context?: { toolConfigManager?: import('./tool-config.js').ToolConfigManager }) {
+    async execute({ figmaUrl, screenId }, context?: { toolConfigManager?: import('./tool-config.js').ToolConfigManager; config?: Config }) {
       const configManager = context?.toolConfigManager;
       if (!configManager) {
         return 'Error: Tool configuration manager not available.';
@@ -444,7 +440,18 @@ const BUILT_IN_TOOLS: Tool[] = [
         const { FigmaMcpClient } = await import('./tools/figma-mcp.js');
         const { checkCurrentCodeStatus, compareCodeWithFigma } = await import('./tools/figma-screen-developer.js');
         
-        const client = new FigmaMcpClient(apiKey, configManager);
+        // Get database if available
+        let database;
+        try {
+          if (context?.config) {
+            database = context.config.getDatabase();
+          }
+        } catch (error) {
+          // Database disabled or error - continue without persistence
+          logger.info('Database not available for Figma persistence');
+        }
+        
+        const client = new FigmaMcpClient(apiKey, configManager, database);
         
         // Step 1: Extract design tokens
         const tokens = await client.extractDesignTokens(figmaUrl as string, false, './assets/images');

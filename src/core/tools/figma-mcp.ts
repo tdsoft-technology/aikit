@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger.js';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { FigmaDatabase } from '../database/figma-db.js';
 
 /**
  * Figma API response types
@@ -155,9 +156,11 @@ export interface DesignTokens {
  */
 export class FigmaMcpClient {
   private apiKey: string;
+  private database?: FigmaDatabase;
 
-  constructor(apiKey: string, _configManager: ToolConfigManager) {
+  constructor(apiKey: string, _configManager: ToolConfigManager, database?: FigmaDatabase) {
     this.apiKey = apiKey;
+    this.database = database;
   }
 
   /**
@@ -275,14 +278,26 @@ export class FigmaMcpClient {
   }
 
   /**
-   * Extract design tokens from Figma file
+   * Extract design tokens from Figma file and optionally persist to database
    */
   async extractDesignTokens(url: string, downloadAssets: boolean = true, assetsDir?: string): Promise<DesignTokens> {
-    const fileData = await this.getFileData(url);
     const fileKey = this.extractFileKey(url);
     if (!fileKey) {
       throw new Error(`Invalid Figma URL: ${url}`);
     }
+
+    // Check if we have cached data in database
+    if (this.database) {
+      const cachedData = await this.getFromDatabase(fileKey);
+      if (cachedData) {
+        logger.info(`⚡ Using cached data from database (analyzed ${this.getTimeAgo(cachedData.last_analyzed)})`);
+        return cachedData.tokens;
+      }
+    }
+
+    // Fetch fresh data from API
+    logger.info('⏳ Fetching fresh data from Figma API...');
+    const fileData = await this.getFileData(url);
 
     const tokens: DesignTokens = {
       colors: [],
@@ -339,7 +354,269 @@ export class FigmaMcpClient {
       }
     }
 
+    // Persist to database if available
+    if (this.database) {
+      await this.persistToDatabase(url, fileKey, tokens);
+    }
+
     return tokens;
+  }
+
+  /**
+   * Persist extracted tokens to database
+   */
+  private async persistToDatabase(url: string, fileKey: string, tokens: DesignTokens): Promise<void> {
+    if (!this.database) return;
+
+    try {
+      logger.info('Persisting Figma data to database...');
+
+      // Upsert file record
+      const fileId = fileKey;
+      await this.database.upsertFile({
+        id: fileId,
+        url,
+        name: url.split('/').pop() || 'Figma Design',
+        file_key: fileKey,
+        last_analyzed: new Date()
+      });
+
+      // Upsert screens
+      for (const screen of tokens.screens) {
+        await this.database.upsertScreen({
+          id: screen.id,
+          file_id: fileId,
+          name: screen.name,
+          width: screen.width,
+          height: screen.height,
+          type: screen.type,
+          children_count: screen.childrenCount
+        });
+      }
+
+      // Upsert nodes from structure
+      if (tokens.structure?.nodes) {
+        for (const node of tokens.structure.nodes) {
+          await this.database.upsertNode({
+            id: node.id,
+            file_id: fileId,
+            screen_id: this.findScreenIdForNode(node.id, tokens.screens),
+            parent_id: this.findParentId(node.id, tokens.structure.nodes),
+            name: node.name,
+            type: node.type,
+            content: node.content,
+            position_x: node.position?.x,
+            position_y: node.position?.y,
+            width: node.position?.width,
+            height: node.position?.height,
+            styles: node.styles ? JSON.stringify(node.styles) : undefined,
+            children_ids: node.children ? JSON.stringify(node.children) : undefined
+          });
+        }
+      }
+
+      // Upsert design tokens
+      for (const color of tokens.colors) {
+        await this.database.upsertDesignToken({
+          file_id: fileId,
+          type: 'color',
+          name: color.name,
+          value: color.hex,
+          category: 'color'
+        });
+      }
+
+      for (const typo of tokens.typography) {
+        await this.database.upsertDesignToken({
+          file_id: fileId,
+          type: 'typography',
+          name: typo.name,
+          value: JSON.stringify({
+            fontFamily: typo.fontFamily,
+            fontSize: typo.fontSize,
+            fontWeight: typo.fontWeight,
+            lineHeight: typo.lineHeight
+          }),
+          category: 'typography'
+        });
+      }
+
+      for (const component of tokens.components) {
+        await this.database.upsertDesignToken({
+          file_id: fileId,
+          type: 'component',
+          name: component.name,
+          value: component.type,
+          category: component.description
+        });
+      }
+
+      // Upsert assets
+      if (tokens.assets) {
+        for (const asset of tokens.assets) {
+          await this.database.upsertAsset({
+            file_id: fileId,
+            node_id: asset.nodeId,
+            node_name: asset.nodeName,
+            node_type: asset.nodeType,
+            format: asset.format,
+            file_path: asset.path,
+            url: asset.url,
+            width: asset.width,
+            height: asset.height
+          });
+        }
+      }
+
+      logger.info('Successfully persisted Figma data to database');
+    } catch (error) {
+      logger.error(`Failed to persist to database: ${error instanceof Error ? error.message : String(error)}`);
+      // Don't throw - database persistence is optional
+    }
+  }
+
+  /**
+   * Get cached data from database
+   */
+  private async getFromDatabase(fileKey: string): Promise<{ tokens: DesignTokens; last_analyzed: Date } | null> {
+    if (!this.database) return null;
+
+    try {
+      // Get file record
+      const file = await this.database.getFile(fileKey);
+      if (!file || !file.last_analyzed) return null;
+
+      // Check if cache is still valid (24 hours)
+      const cacheAge = Date.now() - file.last_analyzed.getTime();
+      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+      if (cacheAge > maxAge) {
+        logger.info('Cache expired, fetching fresh data...');
+        return null;
+      }
+
+      // Retrieve all data
+      const screens = await this.database.getScreensByFile(fileKey);
+      const nodes = await this.database.getNodesByFile(fileKey);
+      const tokenRecords = await this.database.getDesignTokensByFile(fileKey);
+      const assets = await this.database.getAssetsByFile(fileKey);
+
+      // Convert database records back to DesignTokens format
+      const tokens: DesignTokens = {
+        colors: tokenRecords
+          .filter(t => t.type === 'color')
+          .map(t => ({ name: t.name, hex: t.value, rgba: t.value })),
+        typography: tokenRecords
+          .filter(t => t.type === 'typography')
+          .map(t => {
+            const parsed = JSON.parse(t.value);
+            return {
+              name: t.name,
+              fontFamily: parsed.fontFamily,
+              fontSize: parsed.fontSize,
+              fontWeight: parsed.fontWeight,
+              lineHeight: parsed.lineHeight,
+              letterSpacing: parsed.letterSpacing
+            };
+          }),
+        spacing: {
+          unit: 8,
+          scale: [4, 8, 12, 16, 24, 32, 48, 64]
+        },
+        components: tokenRecords
+          .filter(t => t.type === 'component')
+          .map(t => ({ name: t.name, type: t.value, description: t.category })),
+        screens: screens.map(s => ({
+          id: s.id,
+          name: s.name,
+          width: s.width || 0,
+          height: s.height || 0,
+          type: s.type || 'FRAME',
+          description: s.description,
+          childrenCount: s.children_count
+        })),
+        breakpoints: [375, 768, 1024, 1280, 1920],
+        structure: {
+          nodes: nodes.map(n => ({
+            id: n.id,
+            name: n.name,
+            type: n.type,
+            content: n.content,
+            position: n.position_x !== undefined ? {
+              x: n.position_x,
+              y: n.position_y || 0,
+              width: n.width || 0,
+              height: n.height || 0
+            } : undefined,
+            styles: n.styles ? JSON.parse(n.styles) : undefined,
+            children: n.children_ids ? JSON.parse(n.children_ids) : undefined
+          })),
+          hierarchy: this.buildHierarchy(nodes)
+        },
+        assets: assets.map(a => ({
+          nodeId: a.node_id,
+          nodeName: a.node_name || '',
+          nodeType: a.node_type || '',
+          format: a.format || 'png',
+          path: a.file_path || '',
+          url: a.url || '',
+          width: a.width,
+          height: a.height
+        }))
+      };
+
+      return { tokens, last_analyzed: file.last_analyzed };
+    } catch (error) {
+      logger.warn(`Failed to retrieve from database: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Build hierarchy string from nodes
+   */
+  private buildHierarchy(nodes: any[]): string {
+    // Simple tree representation
+    return nodes.map(n => `${n.type} "${n.name}" [${n.id}]`).join('\n');
+  }
+
+  /**
+   * Get human-readable time ago
+   */
+  private getTimeAgo(date: Date): string {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return `${seconds} seconds ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} minutes ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hours ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} days ago`;
+  }
+
+  /**
+   * Helper to find which screen a node belongs to
+   */
+  private findScreenIdForNode(nodeId: string, screens: any[]): string | undefined {
+    // Simple heuristic - if the node ID is a screen ID, return it
+    if (screens.find(s => s.id === nodeId)) {
+      return nodeId;
+    }
+    
+    // For now, return undefined - we'd need more sophisticated logic
+    // to determine the parent screen for nested nodes
+    return undefined;
+  }
+
+  /**
+   * Helper to find parent node ID
+   */
+  private findParentId(nodeId: string, nodes: any[]): string | undefined {
+    for (const node of nodes) {
+      if (node.children?.includes(nodeId)) {
+        return node.id;
+      }
+    }
+    return undefined;
   }
 
   /**

@@ -8,7 +8,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 
-import { loadConfig } from '../../core/config.js';
+import { loadConfig, PlatformType } from '../../core/config.js';
 import { SkillEngine } from '../../core/skills.js';
 import { BeadsIntegration } from '../../core/beads.js';
 import { CliDetector, CliTool, CliPlatform } from '../../utils/cli-detector.js';
@@ -18,7 +18,26 @@ import { initializeConfig, installCliTool } from '../helpers.js';
 import { AgentManager } from '../../core/agents.js';
 import { CommandRunner } from '../../core/commands.js';
 import { SessionManager } from '../../core/sessions.js';
-import { createAdapter } from '../../platform/adapters.js';
+import { getEnabledAdapters } from '../../platform/adapters.js';
+
+/**
+ * Platform choice for user selection
+ */
+type PlatformChoice = 'opencode' | 'claude' | 'both';
+
+/**
+ * Map user choice to platform config
+ */
+function getPlatformConfig(choice: PlatformChoice): { opencode: boolean; claude: boolean; primary: PlatformType } {
+  switch (choice) {
+    case 'opencode':
+      return { opencode: true, claude: false, primary: 'opencode' };
+    case 'claude':
+      return { opencode: false, claude: true, primary: 'claude' };
+    case 'both':
+      return { opencode: true, claude: true, primary: 'opencode' };
+  }
+}
 
 export function registerInitCommand(program: Command): void {
   program
@@ -26,6 +45,9 @@ export function registerInitCommand(program: Command): void {
     .description('Initialize AIKit configuration for a specific platform')
     .option('-g, --global', 'Initialize global configuration')
     .option('-p, --project', 'Initialize project-level configuration')
+    .option('--opencode', 'Use OpenCode only')
+    .option('--claude', 'Use Claude Code only')
+    .option('--both', 'Use both OpenCode and Claude Code')
     .action(async (platformArg, options) => {
       const configDir = options.global ? paths.globalConfig() : paths.projectConfig();
 
@@ -33,45 +55,70 @@ export function registerInitCommand(program: Command): void {
       logger.info(`Initializing AIKit in ${configDir}...`);
 
       try {
-        // Step 1: Initialize config
-        await initializeConfig(configDir, options.global);
+        // Determine platform choice from flags or prompt
+        let platformChoice: PlatformChoice;
+
+        if (options.opencode) {
+          platformChoice = 'opencode';
+        } else if (options.claude) {
+          platformChoice = 'claude';
+        } else if (options.both) {
+          platformChoice = 'both';
+        } else if (platformArg) {
+          // Legacy support: map platform arg to choice
+          const mapped = CliDetector.matchPlatform(platformArg);
+          platformChoice = mapped === CliPlatform.CLAUDE ? 'claude' : 'opencode';
+        } else {
+          // Interactive platform selection
+          console.log(chalk.bold('\n📦 Select Your AI Coding Platform\n'));
+          
+          const { choice } = await inquirer.prompt([
+            {
+              type: 'list',
+              name: 'choice',
+              message: 'Which platform(s) do you want to use?',
+              choices: [
+                {
+                  name: `${chalk.green('●')} OpenCode ${chalk.gray('(recommended)')}`,
+                  value: 'opencode',
+                },
+                {
+                  name: `${chalk.yellow('●')} Claude Code ${chalk.yellow('(Beta)')}`,
+                  value: 'claude',
+                },
+                {
+                  name: `${chalk.cyan('●')} Both Platforms ${chalk.gray('(OpenCode + Claude Code)')}`,
+                  value: 'both',
+                },
+              ],
+              default: 'opencode',
+            },
+          ]);
+
+          platformChoice = choice;
+
+          // Show beta warning for Claude Code
+          if (platformChoice === 'claude' || platformChoice === 'both') {
+            console.log(chalk.yellow('\n⚠️  Claude Code support is in Beta'));
+            console.log(chalk.gray('   Some features may be limited or experimental.\n'));
+          }
+        }
+
+        // Get platform config based on choice
+        const platformConfig = getPlatformConfig(platformChoice);
+
+        // Step 1: Initialize config with platform settings
+        await initializeConfig(configDir, options.global, platformConfig);
         logger.success('✓ Configuration created');
 
+        // Show selected platforms
+        console.log(chalk.bold('\n📋 Platform Configuration:'));
+        console.log(`   OpenCode:    ${platformConfig.opencode ? chalk.green('enabled') : chalk.gray('disabled')}`);
+        console.log(`   Claude Code: ${platformConfig.claude ? chalk.yellow('enabled (Beta)') : chalk.gray('disabled')}`);
+        console.log(`   Primary:     ${chalk.cyan(platformConfig.primary)}\n`);
+
         if (!options.global) {
-          // Step 2: Platform selection
-          let selectedPlatform: CliPlatform;
-
-          if (platformArg) {
-            selectedPlatform = CliDetector.matchPlatform(platformArg);
-          } else {
-            const platforms = await CliDetector.detectPlatforms();
-            const installed = CliDetector.filterInstalledPlatforms(platforms);
-
-            console.log(chalk.bold('\n🔍 Available CLI Tools\n'));
-            for (const p of platforms) {
-              const status = p.installed ? chalk.green('✓') : chalk.gray('○');
-              console.log(`  ${status} ${p.displayName}`);
-            }
-
-            const { platform } = await inquirer.prompt([
-              {
-                type: 'list',
-                name: 'platform',
-                message: 'Which CLI tool do you want to configure AIKit for?',
-                choices: platforms.map(p => ({
-                  name: p.displayName,
-                  value: p.platform,
-                })),
-                default: installed[0]?.platform || CliPlatform.OPENCODE,
-              },
-            ]);
-
-            selectedPlatform = platform;
-          }
-
-          logger.info(`Selected platform: ${selectedPlatform}`);
-
-          // Step 3: Sync skills
+          // Step 2: Load config and sync skills
           const config = await loadConfig();
           const engine = new SkillEngine(config);
           const result = await engine.syncSkillsToProject();
@@ -79,8 +126,8 @@ export function registerInitCommand(program: Command): void {
             logger.success(`✓ Synced ${result.count} skills`);
           }
 
-          // Step 4: Install CLI tool if needed
-          if (selectedPlatform === CliPlatform.CLAUDE) {
+          // Step 3: Install CLI tools if needed
+          if (platformConfig.claude) {
             const cliTools = await CliDetector.checkAll();
             const claudeTool = cliTools.find(t => t.name === CliTool.CLAUDE);
             if (claudeTool && !claudeTool.installed) {
@@ -99,7 +146,7 @@ export function registerInitCommand(program: Command): void {
             }
           }
 
-          // Step 5: Initialize beads
+          // Step 4: Initialize beads
           const beads = new BeadsIntegration();
           const beadsStatus = await beads.getStatus();
 
@@ -115,33 +162,43 @@ export function registerInitCommand(program: Command): void {
             logger.info('Beads already initialized');
           }
 
-          // Step 5.5: Setup git hooks
+          // Step 5: Setup git hooks
           logger.info('Setting up git hooks...');
           await beads.setupGitHooks();
           logger.success('✓ Git hooks configured');
 
-          // Step 5.6: Initialize sessions folder
+          // Step 6: Initialize sessions folder
           const sessionManager = new SessionManager();
           await sessionManager.init();
           logger.success('✓ Sessions folder initialized');
 
-          // Step 5.7: Initialize terminal session file
+          // Step 7: Initialize terminal session file
           const { tracker } = await sessionManager.initTerminalSession();
           logger.success(`✓ Session tracker initialized (${tracker.split('/').pop()})`);
 
-          // Step 6: Install platform-specific commands
-          const adapter = createAdapter(selectedPlatform);
-          logger.info(`Installing AIKit for ${adapter.displayName}...`);
-          await installToPlatform(adapter, config);
+          // Step 8: Install to enabled platforms
+          const enabledAdapters = getEnabledAdapters(config);
+          
+          for (const adapter of enabledAdapters) {
+            logger.info(`Installing AIKit for ${adapter.displayName}...`);
+            await installToPlatform(adapter, config);
+          }
 
           console.log(chalk.bold('\n✨ AIKit is ready!\n'));
 
-          // Show platform-specific usage
-          if (selectedPlatform === CliPlatform.OPENCODE) {
+          // Show usage based on primary platform
+          if (platformConfig.primary === 'opencode') {
             showOpenCodeUsage();
-          } else if (selectedPlatform === CliPlatform.CLAUDE) {
+          } else {
             showClaudeUsage();
           }
+
+          // Show platform switch tip
+          console.log(chalk.gray('━'.repeat(50)));
+          console.log(chalk.gray('\nSwitch platforms anytime:'));
+          console.log(chalk.gray('  aikit platform enable claude'));
+          console.log(chalk.gray('  aikit platform disable opencode'));
+          console.log(chalk.gray('  aikit platform status\n'));
         }
       } catch (error) {
         logger.error('Failed to initialize AIKit:', error);
@@ -185,6 +242,12 @@ async function installToPlatform(
     await adapter.installAgent(name, content);
     logger.info(`  ✓ Created ${name} agent`);
   }
+
+  // Generate commands manifest for Claude Code
+  if (adapter.platform === CliPlatform.CLAUDE && adapter.generateCommandsManifest) {
+    await adapter.generateCommandsManifest();
+    logger.success('✓ Generated commands manifest');
+  }
 }
 
 function showOpenCodeUsage(): void {
@@ -200,11 +263,10 @@ function showOpenCodeUsage(): void {
 }
 
 function showClaudeUsage(): void {
-  console.log('Usage in Claude Code CLI:');
+  console.log(chalk.yellow('Claude Code (Beta) Usage:'));
   console.log(chalk.cyan('  /help') + '    - List all available commands');
   console.log(chalk.cyan('  /plan') + '    - Create implementation plan');
   console.log(chalk.cyan('  /implement') + ' - Implement a task');
   console.log(chalk.cyan('  /test') + '    - Run tests');
   console.log('\nType ' + chalk.bold('"/help"') + ' in Claude to see all commands.\n');
 }
-

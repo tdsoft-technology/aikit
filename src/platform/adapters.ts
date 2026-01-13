@@ -2,7 +2,11 @@ import { CliPlatform } from '../utils/cli-detector.js';
 import { OpenCodeAdapter } from './opencode-adapter.js';
 import { ClaudeAdapter } from './claude-adapter.js';
 import { PlatformAdapter } from './types.js';
+import { Config, PlatformType } from '../core/config.js';
 
+/**
+ * Create a platform adapter for a specific platform
+ */
 export function createAdapter(platform: CliPlatform): PlatformAdapter {
   switch (platform) {
     case CliPlatform.OPENCODE:
@@ -14,7 +18,48 @@ export function createAdapter(platform: CliPlatform): PlatformAdapter {
   }
 }
 
+/**
+ * Map PlatformType to CliPlatform
+ */
+function platformTypeToCliPlatform(type: PlatformType): CliPlatform {
+  switch (type) {
+    case 'opencode':
+      return CliPlatform.OPENCODE;
+    case 'claude':
+      return CliPlatform.CLAUDE;
+  }
+}
+
+/**
+ * Get adapters for all enabled platforms based on config
+ * This respects the platform toggle flags in aikit.json
+ */
+export function getEnabledAdapters(config: Config): PlatformAdapter[] {
+  const enabledPlatforms = config.getEnabledPlatforms();
+  return enabledPlatforms.map(platform => 
+    createAdapter(platformTypeToCliPlatform(platform))
+  );
+}
+
+/**
+ * Get adapter for a specific platform if it's enabled
+ * Returns null if the platform is disabled in config
+ */
+export function getAdapterIfEnabled(config: Config, platform: PlatformType): PlatformAdapter | null {
+  if (!config.isPlatformEnabled(platform)) {
+    return null;
+  }
+  return createAdapter(platformTypeToCliPlatform(platform));
+}
+
+/**
+ * Check if any platform is enabled
+ */
+export function hasEnabledPlatforms(config: Config): boolean {
+  return config.getEnabledPlatforms().length > 0;
+}
+
 export const SUPPORTED_PLATFORMS = [
-  { platform: CliPlatform.OPENCODE, name: 'OpenCode' },
-  { platform: CliPlatform.CLAUDE, name: 'Claude Code CLI' },
+  { platform: CliPlatform.OPENCODE, name: 'OpenCode', configKey: 'opencode' as PlatformType },
+  { platform: CliPlatform.CLAUDE, name: 'Claude Code CLI', configKey: 'claude' as PlatformType },
 ] as const;

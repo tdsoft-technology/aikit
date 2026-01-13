@@ -28,6 +28,7 @@ class AiKitMcpServer {
   private commandRunner!: CommandRunner;
   private toolRegistry!: ToolRegistry;
   private toolConfigManager!: ToolConfigManager;
+  private config!: any; // Store config instance
   private currentMode: string = 'build'; // Default mode
 
   constructor() {
@@ -242,8 +243,11 @@ class AiKitMcpServer {
           if (!this.toolConfigManager) {
             result = `Error: Tool configuration manager not initialized. MCP server may not be properly started.`;
           } else {
-          // Pass toolConfigManager context for tools that need it
-          const context = { toolConfigManager: this.toolConfigManager };
+          // Pass both toolConfigManager AND config for database support
+          const context = { 
+            toolConfigManager: this.toolConfigManager,
+            config: this.config 
+          };
           result = await this.toolRegistry.executeTool(toolName, args || {}, context);
           }
         } catch (error) {
@@ -322,6 +326,7 @@ class AiKitMcpServer {
   async initialize(): Promise<void> {
     try {
       const config = await loadConfig();
+      this.config = config; // CRITICAL: Store config instance for tools to access database
       this.skillEngine = new SkillEngine(config);
       this.agentManager = new AgentManager(config);
       this.commandRunner = new CommandRunner(config);

@@ -4,7 +4,7 @@ import { Skill } from '../core/skills.js';
 import { Agent } from '../core/agents.js';
 import { CliPlatform } from '../utils/cli-detector.js';
 import { paths } from '../utils/paths.js';
-import { writeFile, mkdir, readdir } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import matter from 'gray-matter';
 
@@ -78,27 +78,20 @@ export class ClaudeAdapter implements PlatformAdapter {
   }
 
   private generateCommandContent(command: Command): string {
-    // Remove OpenCode-specific headers and formatting
+    // Keep argument handling intact - only remove OpenCode-specific headers and formatting
     let workflow = command.content;
 
-    // Remove OpenCode-specific sections
-    workflow = workflow
-      .replace(/## ⚠️ CRITICAL: The User Has Already Provided Arguments!.*?(?![\n])?.*/gs, '')
-      .replace(/\*\*The user has provided arguments with this command!\*\*/g, '')
-      .replace(/\*\*The arguments are available in this command response.*?\*\*/g, '')
-      .replace(/\*\*YOUR JOB\*\*:.*/gs, '')
-      .replace(/1\. Follow command workflow steps.*?\n2\. The workflow will tell you.*?\n3\. Use those arguments.*?\n4\. They have already provided it.*?\n5\. DO NOT ask.*?\n6\. DO: Follow workflow.*?\n+\**Example Scenario\*\*:.*/gs, '')
-      .replace(/\*\*User runs:.*?\*\*:\n.*?\n+- Command:.*?\n+- Arguments to use:.*?\n+- You must use.*?\n+- DO NOT:.*?\n+- DO:.*?\n+\*\*\*/g, '')
-      .replace(/\*\*\*/g, '');
-
-    // Remove command header
+    // Only remove command header, preserve all argument handling content
     workflow = workflow.replace(/^# Command: \/[a-z_]*[\s-]+\n+/g, '');
 
-    // Transform $ARGUMENTS to Claude format
+    // Ensure argument placeholders are properly formatted for Claude
     workflow = workflow
       .replace(/\$ARGUMENTS/g, '$ARGUMENTS')
       .replace(/\$1/g, '$1')
-      .replace(/\$2/g, '$2');
+      .replace(/\$2/g, '$2')
+      .replace(/\$3/g, '$3')
+      .replace(/\$4/g, '$4')
+      .replace(/\$5/g, '$5');
 
     // Generate frontmatter
     const frontmatter = {

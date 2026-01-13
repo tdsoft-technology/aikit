@@ -16,6 +16,7 @@ import {
   registerAgentsCommand,
   registerCommandsCommand,
   registerModeCommand,
+  registerPlatformCommand,
   registerToolsCommand,
   registerPluginsCommand,
   registerMemoryCommand,
@@ -39,6 +40,7 @@ registerSkillsCommand(program);
 registerAgentsCommand(program);
 registerCommandsCommand(program);
 registerModeCommand(program);
+registerPlatformCommand(program);
 registerToolsCommand(program);
 registerPluginsCommand(program);
 registerMemoryCommand(program);

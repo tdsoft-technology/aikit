@@ -10,6 +10,7 @@ export { SkillEngine, type Skill } from './core/skills.js';
 export { AgentManager, type Agent, type AgentType } from './core/agents.js';
 export { CommandRunner, type Command } from './core/commands.js';
 export { ToolRegistry, type Tool, defineTool } from './core/tools.js';
+export { ToolConfigManager, type ToolConfig, type ToolStatus } from './core/tool-config.js';
 export { PluginSystem, type Plugin, type PluginEvent } from './core/plugins.js';
 export { MemoryManager, type Memory } from './core/memory.js';
 export { BeadsIntegration } from './core/beads.js';

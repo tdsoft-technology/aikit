@@ -103,6 +103,18 @@ export class OpenCodeAdapter implements PlatformAdapter {
       return `- \`${e}\``;
     }).join('\n');
 
+    // Process the workflow content to ensure argument placeholders are preserved
+    let workflow = command.content;
+
+    // Ensure argument placeholders are properly formatted for OpenCode
+    workflow = workflow
+      .replace(/\$ARGUMENTS/g, '$ARGUMENTS')
+      .replace(/\$1/g, '$1')
+      .replace(/\$2/g, '$2')
+      .replace(/\$3/g, '$3')
+      .replace(/\$4/g, '$4')
+      .replace(/\$5/g, '$5');
+
     return `# Command: /${command.name}
 
 ## Description
@@ -114,29 +126,8 @@ ${command.description}
 ## Examples
 ${examples}
 
-## ⚠️ CRITICAL: The User Has Already Provided Arguments!
-
-**The user has provided arguments with this command!**
-
-The arguments are available in this command response - look at the command workflow below, which now includes explicit instructions to use the provided arguments.
-
-**YOUR JOB**:
-1. Follow the command workflow steps
-2. The workflow will tell you to look at "Arguments Provided" section
-3. Use those arguments - do NOT ask the user for this information!
-4. They have already provided it - extract and use it!
-
-**Example Scenario**:
-- User runs: \`/${command.name} snake game with html & css\`
-- Command: \`/${command.name}\`
-- Arguments to use: \`snake game with html & css\`
-- You must use "snake game with html & css" as provided in the workflow!
-
-**DO NOT**: Ask "Please provide a task description"
-**DO**: Follow the workflow and use the arguments provided in it!
-
 ## Workflow
-${command.content}
+${workflow}
 
 **Category**: ${command.category}`;
   }
