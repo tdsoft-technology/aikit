@@ -3,12 +3,42 @@ import { join } from 'path';
 import { z } from 'zod';
 import { paths } from '../utils/paths.js';
 import { getVersion } from '../utils/version.js';
+import { FigmaDatabase } from './database/figma-db.js';
+
+/**
+ * Platform types supported by AIKit
+ */
+export type PlatformType = 'opencode' | 'claude';
+
+/**
+ * Platform configuration schema
+ */
+const PlatformConfigSchema = z.object({
+  /**
+   * Primary platform to use (affects default behavior)
+   */
+  primary: z.enum(['opencode', 'claude']).default('opencode'),
+  /**
+   * Enable OpenCode platform support
+   * Default: true (OpenCode is the primary focus)
+   */
+  opencode: z.boolean().default(true),
+  /**
+   * Enable Claude Code platform support
+   * Default: false (archived, can be re-enabled later)
+   */
+  claude: z.boolean().default(false),
+}).default({});
 
 /**
  * AIKit Configuration Schema
  */
 const ConfigSchema = z.object({
   version: z.string(),
+  /**
+   * Platform configuration - controls which platforms are active
+   */
+  platform: PlatformConfigSchema,
   skills: z.object({
     enabled: z.boolean().default(true),
     directory: z.string().optional(),
@@ -39,6 +69,10 @@ const ConfigSchema = z.object({
     enabled: z.boolean().default(true),
     specFile: z.string().default('spec.md'),
     reviewFile: z.string().default('review.md'),
+  }).default({}),
+  database: z.object({
+    enabled: z.boolean().default(true),
+    path: z.string().optional(), // If not provided, will use default path
   }).default({}),
   mcp: z.object({
     context7: z.boolean().default(false),
@@ -99,12 +133,48 @@ export class Config {
     return this.config.antiHallucination;
   }
 
+  get database() {
+    return this.config.database;
+  }
+
   get mode() {
     return this.config.mode;
   }
 
+  get platform() {
+    return this.config.platform;
+  }
+
   get configPath(): string {
     return this.config.configPath;
+  }
+
+  /**
+   * Check if a specific platform is enabled
+   */
+  isPlatformEnabled(platform: PlatformType): boolean {
+    return this.config.platform[platform] ?? false;
+  }
+
+  /**
+   * Get the primary platform
+   */
+  getPrimaryPlatform(): PlatformType {
+    return this.config.platform.primary;
+  }
+
+  /**
+   * Get list of all enabled platforms
+   */
+  getEnabledPlatforms(): PlatformType[] {
+    const platforms: PlatformType[] = [];
+    if (this.config.platform.opencode) {
+      platforms.push('opencode');
+    }
+    if (this.config.platform.claude) {
+      platforms.push('claude');
+    }
+    return platforms;
   }
 
   get projectPath(): string {
@@ -114,8 +184,24 @@ export class Config {
   /**
    * Get path to a specific resource
    */
-  getPath(resource: 'skills' | 'agents' | 'commands' | 'tools' | 'plugins' | 'memory'): string {
+  getPath(resource: 'skills' | 'agents' | 'commands' | 'tools' | 'plugins' | 'memory' | 'database'): string {
+    if (resource === 'database') {
+      return this.config.database.path || join(this.configPath, 'figma.db');
+    }
     return paths[resource](this.configPath);
+  }
+
+  /**
+   * Get database instance
+   */
+  getDatabase(): FigmaDatabase {
+    // Database is enabled by default, check explicit disable
+    if (this.config.database?.enabled === false) {
+      throw new Error('Database is disabled in configuration');
+    }
+    
+    const dbPath = this.getPath('database');
+    return new FigmaDatabase(dbPath);
   }
 }
 

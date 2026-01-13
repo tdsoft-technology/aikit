@@ -25,9 +25,22 @@ import { paths } from '../utils/paths.js';
 import chalk from 'chalk';
 
 /**
+ * Platform configuration for initialization
+ */
+export interface PlatformConfig {
+  primary: 'opencode' | 'claude';
+  opencode: boolean;
+  claude: boolean;
+}
+
+/**
  * Initialize AIKit configuration in a directory
  */
-export async function initializeConfig(configDir: string, _isGlobal?: boolean): Promise<void> {
+export async function initializeConfig(
+  configDir: string, 
+  _isGlobal?: boolean,
+  platformConfig?: PlatformConfig
+): Promise<void> {
   // Create directory structure
   const dirs = [
     '',
@@ -51,9 +64,17 @@ export async function initializeConfig(configDir: string, _isGlobal?: boolean): 
     await mkdir(join(configDir, dir), { recursive: true });
   }
   
+  // Use provided platform config or defaults
+  const platform = platformConfig || {
+    primary: 'opencode' as const,
+    opencode: true,
+    claude: false, // Archived - can be re-enabled later
+  };
+
   // Create default config file
   const defaultConfig = {
     version: VERSION(),
+    platform,
     skills: { enabled: true },
     agents: { enabled: true, default: 'build' },
     commands: { enabled: true },
@@ -62,6 +83,7 @@ export async function initializeConfig(configDir: string, _isGlobal?: boolean): 
     memory: { enabled: true },
     beads: { enabled: true },
     antiHallucination: { enabled: true },
+    database: { enabled: true, path: '.aikit/figma.db' },
   };
   
   await writeFile(
@@ -354,50 +376,18 @@ Analyze a Figma design and extract design tokens
 ## Examples
 - \`/analyze-figma https://www.figma.com/design/...\`
 
-## ⚠️ CRITICAL: Extract URL FIRST!
-
-**BEFORE ANYTHING ELSE**: Look at the user's FULL input message (all lines) and find the Figma URL. It's ALWAYS there - never ask for it!
-
-**The URL pattern**: Look for text containing \`figma.com/design/\` anywhere in the user's message.
-
-**Example of what user input looks like**:
-\`\`\`
-/analyze-figma https://www.figma.com/design/lC34qpTSy2MYalTIOsj8S2/
-Online-Education-Website-Free-Template--Community-?t=7G5yzTiEtJlIZBtY-0
-\`\`\`
-
-**Extract the complete URL** (combine if split):
-\`https://www.figma.com/design/lC34qpTSy2MYalTIOsj8S2/Online-Education-Website-Free-Template--Community-?t=7G5yzTiEtJlIZBtY-0\`
-
 ## Workflow
 
-**IMPORTANT**: When user provides a Figma URL, you MUST immediately:
+Analyze a Figma design and extract all design tokens automatically using Figma API.
 
-**Step 1: Extract URL from User Input**
+**Step 1: Extract Figma URL**
 
-**CRITICAL**: The URL is ALWAYS in the user's input message! DO NOT ask for it - just extract it!
+The Figma URL is provided as: \`$ARGUMENTS\`
 
-**MANDATORY**: You MUST extract the URL before proceeding. This is not optional!
-
-**How to Extract**:
-1. **Read the ENTIRE user input message** - look at ALL lines, not just the first line
-2. **Search for ANY text containing** \`figma.com/design/\` - this is the URL
-3. **URL may appear in different formats**:
-   - On same line: \`/analyze-figma https://www.figma.com/design/...\`
-   - Split across lines
-4. **Extract the COMPLETE URL**:
-   - Start from \`https://\` or \`http://\`
-   - Include everything until the end of the line or next whitespace
-   - If URL is split, combine ALL parts into one complete URL
-5. **Include ALL query parameters**: \`?node-id=...\`, \`&t=...\`, etc.
-
-**CRITICAL RULES**:
-- ✅ DO: Read the ENTIRE user message (all lines)
-- ✅ DO: Look for \`figma.com/design/\` anywhere in the message
-- ✅ DO: Combine split lines into one URL
-- ❌ DO NOT: Ask user for URL - it's ALWAYS in the input
-- ❌ DO NOT: Skip this step - URL extraction is MANDATORY
-- ❌ DO NOT: Proceed without extracting URL first
+Extract the URL from \`$ARGUMENTS\`:
+- The URL pattern: \`https://www.figma.com/design/...\` or \`http://www.figma.com/design/...\`
+- Extract the ENTIRE URL including all query parameters
+- If URL contains spaces or line breaks, clean and combine them
 
 **Step 2: Check Tool Configuration**
 
@@ -405,33 +395,27 @@ Before calling the tool, verify that Figma tool is configured:
 - If not configured, inform user to run: \`aikit skills figma-analysis config\`
 - The tool requires a Figma Personal Access Token
 
-**Step 3: Call MCP Tool read_figma_design**
+**Step 3: Call MCP Tool**
 
-Use the MCP tool \`read_figma_design\` with the extracted URL:
+Use the MCP Figma tool to analyze the design:
 \`\`\`
-Use tool: read_figma_design
-Arguments: { "url": "[extracted URL]" }
+Use MCP tool: mcp__figma__get_figma_data
+Arguments: {
+  "fileKey": "[extracted file key from URL]"
+}
 \`\`\`
 
-**Step 4: Format and Save**
+**Step 4: Format and Save Results**
 
-Format extracted tokens as structured markdown and save using memory-update tool.
+Format extracted tokens as structured markdown with:
+- Colors (from fills and strokes)
+- Typography (font families, sizes, weights, line heights)
+- Spacing system
+- Components
+- Screens/Frames
+- Layout information
 
-**Step 5: Report Results**
-
-Report what was extracted:
-- Number of screens found
-- Number of colors in palette
-- Typography styles found
-- Components identified
-
-## Critical Instructions
-
-- **DO NOT** ask user to "share the Figma URL" - they already provided it in the command
-- **DO NOT** wait for confirmation - just start analyzing immediately
-- **DO** extract URL from full user input message
-- **DO** call MCP tool \`read_figma_design\` immediately
-- **DO** save to memory automatically`;
+**Category**: design`;
 }
 
 /**
@@ -546,27 +530,6 @@ ${cmd.description}
 
 ## Examples
 ${examples}
-
-## ⚠️ CRITICAL: The User Has Already Provided Arguments!
-
-**The user has provided arguments with this command!**
-
-The arguments are available in this command response - look at the command workflow below, which now includes explicit instructions to use the provided arguments.
-
-**YOUR JOB**:
-1. Follow the command workflow steps
-2. The workflow will tell you to look at "Arguments Provided" section
-3. Use those arguments - do NOT ask the user for this information!
-4. They have already provided it - extract and use it!
-
-**Example Scenario**:
-- User runs: \`/${cmd.name} snake game with html & css\`
-- Command: \`/${cmd.name}\`
-- Arguments to use: \`snake game with html & css\`
-- You must use "snake game with html & css" as provided in the workflow!
-
-**DO NOT**: Ask "Please provide a task description"
-**DO**: Follow the workflow and use the arguments provided in it!
 
 ## Workflow
 ${cmd.content}

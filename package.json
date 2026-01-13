@@ -1,6 +1,6 @@
 {
   "name": "@tdsoft-tech/aikit",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "Open-source AI coding agent toolkit for OpenCode - skills, agents, commands, tools, and plugins",
   "type": "module",
   "main": "dist/index.js",
@@ -42,6 +42,7 @@
     "@tdsoft-tech/aikit": "^0.1.2",
     "@types/diff": "^7.0.2",
     "aikit": "^0.0.1",
+    "better-sqlite3": "^12.5.0",
     "chalk": "^5.3.0",
     "chokidar": "^4.0.1",
     "commander": "^12.1.0",
@@ -58,6 +59,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/inquirer": "^9.0.7",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.10.0",

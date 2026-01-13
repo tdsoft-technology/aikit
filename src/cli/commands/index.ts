@@ -12,6 +12,7 @@ export {
   registerAgentsCommand,
   registerCommandsCommand,
   registerModeCommand,
+  registerPlatformCommand,
   registerToolsCommand,
   registerPluginsCommand,
   registerMemoryCommand,

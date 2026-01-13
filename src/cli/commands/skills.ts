@@ -181,16 +181,21 @@ async function configureToolAction(toolName: string): Promise<void> {
     if (toolName === 'figma-analysis') {
       const { FigmaOAuth } = await import('../../core/auth/figma-oauth.js');
       const oauth = new FigmaOAuth(toolConfigManager);
-      
+
       try {
         const token = await oauth.authenticate();
-        
+
         // Validate token
         console.log(chalk.gray('\nValidating token...'));
         const isValid = await oauth.validateToken(token);
-        
+
         if (isValid) {
           logger.success(`\n✅ ${tool.name} configured successfully!`);
+
+          // Configure Claude Desktop MCP server
+          console.log(chalk.gray('\nConfiguring Claude Desktop MCP server...'));
+          await toolConfigManager.configureMcpServer(toolName, token);
+
           console.log(chalk.gray('\nYou can now use the /analyze-figma command in OpenCode.\n'));
         } else {
           await toolConfigManager.updateToolConfig(toolName, {
