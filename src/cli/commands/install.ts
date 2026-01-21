@@ -26,6 +26,8 @@ function cliPlatformToType(platform: CliPlatform): PlatformType {
       return 'opencode';
     case CliPlatform.CLAUDE:
       return 'claude';
+    case CliPlatform.CURSOR:
+      return 'cursor';
     default:
       return 'opencode';
   }
@@ -47,6 +49,7 @@ export function registerInstallCommand(program: Command): void {
         logger.info(`  Primary: ${config.getPrimaryPlatform()}`);
         logger.info(`  OpenCode: ${config.isPlatformEnabled('opencode') ? 'enabled' : 'disabled'}`);
         logger.info(`  Claude Code: ${config.isPlatformEnabled('claude') ? 'enabled (archived)' : 'disabled (archived)'}`);
+        logger.info(`  Cursor: ${config.isPlatformEnabled('cursor') ? 'enabled' : 'disabled'}`);
         logger.info('');
 
         // Check if any platform is enabled

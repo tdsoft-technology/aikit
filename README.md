@@ -7,7 +7,7 @@
 
 ### **Open-Source AI Coding Agent Toolkit**
 
-**Works with Claude Code & OpenCode**
+**Works with Claude Code, OpenCode, and Cursor**
 
 [![npm version](https://badge.fury.io/js/%40tdsoft-tech%2Faikit.svg)](https://www.npmjs.com/package/@tdsoft-tech/aikit)
 [![License](https://img.shields.io/badge/License-Dual%20License-blue.svg)](LICENSE)
@@ -30,7 +30,7 @@
 
 **AIKit** is a powerful, open-source toolkit that extends your AI coding experience with reusable **skills**, intelligent **agents**, custom **commands**, and flexible **plugins**. It's designed to supercharge your development workflow with AI-driven automation.
 
-**Works with Claude Code (recommended) and OpenCode.**
+**Works with Claude Code (recommended), OpenCode, and Cursor.**
 
 Perfect for developers who want to:
 - 🚀 **Automate repetitive tasks** with custom commands
