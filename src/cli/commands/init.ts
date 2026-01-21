@@ -49,6 +49,7 @@ export function registerInitCommand(program: Command): void {
     .option('-p, --project', 'Initialize project-level configuration')
     .option('--opencode', 'Use OpenCode only')
     .option('--claude', 'Use Claude Code only')
+    .option('--cursor', 'Use Cursor only')
     .option('--both', 'Use both OpenCode and Claude Code')
     .action(async (platformArg, options) => {
       const configDir = options.global ? paths.globalConfig() : paths.projectConfig();
@@ -64,16 +65,24 @@ export function registerInitCommand(program: Command): void {
           platformChoice = 'opencode';
         } else if (options.claude) {
           platformChoice = 'claude';
+        } else if (options.cursor) {
+          platformChoice = 'cursor';
         } else if (options.both) {
           platformChoice = 'both';
         } else if (platformArg) {
           // Legacy support: map platform arg to choice
           const mapped = CliDetector.matchPlatform(platformArg);
-          platformChoice = mapped === CliPlatform.CLAUDE ? 'claude' : 'opencode';
+          if (mapped === CliPlatform.CURSOR) {
+            platformChoice = 'cursor';
+          } else if (mapped === CliPlatform.CLAUDE) {
+            platformChoice = 'claude';
+          } else {
+            platformChoice = 'opencode';
+          }
         } else {
           // Interactive platform selection
           console.log(chalk.bold('\n📦 Select Your AI Coding Platform\n'));
-          
+
           const { choice } = await inquirer.prompt([
             {
               type: 'list',
@@ -89,6 +98,10 @@ export function registerInitCommand(program: Command): void {
                   value: 'claude',
                 },
                 {
+                  name: `${chalk.magenta('●')} Cursor ${chalk.magenta('(Beta)')}`,
+                  value: 'cursor',
+                },
+                {
                   name: `${chalk.cyan('●')} Both Platforms ${chalk.gray('(OpenCode + Claude Code)')}`,
                   value: 'both',
                 },
@@ -99,9 +112,13 @@ export function registerInitCommand(program: Command): void {
 
           platformChoice = choice;
 
-          // Show beta warning for Claude Code
+          // Show beta warning for Claude Code and Cursor
           if (platformChoice === 'claude' || platformChoice === 'both') {
             console.log(chalk.yellow('\n⚠️  Claude Code support is in Beta'));
+            console.log(chalk.gray('   Some features may be limited or experimental.\n'));
+          }
+          if (platformChoice === 'cursor') {
+            console.log(chalk.magenta('\n⚠️  Cursor support is in Beta'));
             console.log(chalk.gray('   Some features may be limited or experimental.\n'));
           }
         }
@@ -117,6 +134,7 @@ export function registerInitCommand(program: Command): void {
         console.log(chalk.bold('\n📋 Platform Configuration:'));
         console.log(`   OpenCode:    ${platformConfig.opencode ? chalk.green('enabled') : chalk.gray('disabled')}`);
         console.log(`   Claude Code: ${platformConfig.claude ? chalk.yellow('enabled (Beta)') : chalk.gray('disabled')}`);
+        console.log(`   Cursor:      ${platformConfig.cursor ? chalk.magenta('enabled (Beta)') : chalk.gray('disabled')}`);
         console.log(`   Primary:     ${chalk.cyan(platformConfig.primary)}\n`);
 
         if (!options.global) {
