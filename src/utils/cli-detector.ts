@@ -10,6 +10,7 @@ export enum CliTool {
   OPENCODE = 'opencode',
   CLAUDE = 'claude',
   GITHUB = 'github',
+  CURSOR = 'cursor',
 }
 
 /**
@@ -19,6 +20,7 @@ export enum CliPlatform {
   OPENCODE = 'opencode',
   CLAUDE = 'claude',
   CODEX = 'codex',
+  CURSOR = 'cursor',
 }
 
 /**
@@ -144,15 +146,61 @@ export class CliDetector {
   }
 
   /**
+   * Check if Cursor is installed
+   */
+  static async checkCursor(): Promise<CliToolInfo> {
+    try {
+      const cursorPath = process.platform === 'win32'
+        ? join(homedir(), 'AppData', 'Local', 'Cursor')
+        : join(homedir(), '.cursor');
+      let installed = existsSync(cursorPath);
+
+      // Verify cursor is actually runnable by checking command
+      let version: string | undefined;
+      if (installed) {
+        try {
+          execSync('cursor --version', { stdio: 'ignore' });
+          version = 'installed';
+        } catch (error) {
+          // Command check failed - check if config file still exists
+          if (existsSync(cursorPath)) {
+            version = 'installed (config exists)';
+          } else {
+            // Config file doesn't exist anymore
+            installed = false;
+          }
+        }
+      }
+
+      return {
+        name: CliTool.CURSOR,
+        displayName: 'Cursor',
+        detected: true,
+        installed,
+        version,
+        configPath: cursorPath,
+      };
+    } catch {
+      return {
+        name: CliTool.CURSOR,
+        displayName: 'Cursor',
+        detected: false,
+        installed: false,
+      };
+    }
+  }
+
+  /**
    * Check all supported CLIs
    */
   static async checkAll(): Promise<CliToolInfo[]> {
     const results: CliToolInfo[] = [];
-    
+
     results.push(await this.checkOpenCode());
     results.push(await this.checkClaude());
     results.push(await this.checkGitHub());
-    
+    results.push(await this.checkCursor());
+
     return results;
   }
 
@@ -175,7 +223,7 @@ export class CliDetector {
    */
   static async detectPlatforms(): Promise<PlatformInfo[]> {
     const platforms: PlatformInfo[] = [];
-    
+
     // Check OpenCode
     const opencodePath = process.platform === 'win32'
       ? process.env.APPDATA || join(homedir(), 'AppData', 'Roaming')
@@ -186,7 +234,7 @@ export class CliDetector {
       installed: existsSync(join(opencodePath, 'opencode', 'opencode.json')),
       configPath: opencodePath,
     });
-    
+
     // Check Claude Code CLI
     const claudePath = process.platform === 'win32'
       ? process.env.APPDATA || join(homedir(), 'AppData', 'Roaming')
@@ -197,7 +245,18 @@ export class CliDetector {
       installed: existsSync(claudePath),
       configPath: claudePath,
     });
-    
+
+    // Check Cursor
+    const cursorPath = process.platform === 'win32'
+      ? join(homedir(), 'AppData', 'Local', 'Cursor')
+      : join(homedir(), '.cursor');
+    platforms.push({
+      platform: CliPlatform.CURSOR,
+      displayName: 'Cursor',
+      installed: existsSync(cursorPath),
+      configPath: cursorPath,
+    });
+
     return platforms;
   }
 
@@ -217,6 +276,8 @@ export class CliDetector {
       return CliPlatform.OPENCODE;
     } else if (normalized === 'claude' || normalized === 'claude-code' || normalized === 'claude-code-cli') {
       return CliPlatform.CLAUDE;
+    } else if (normalized === 'cursor') {
+      return CliPlatform.CURSOR;
     } else if (normalized === 'codex') {
       return CliPlatform.CODEX;
     }

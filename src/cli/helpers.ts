@@ -28,9 +28,10 @@ import chalk from 'chalk';
  * Platform configuration for initialization
  */
 export interface PlatformConfig {
-  primary: 'opencode' | 'claude';
+  primary: 'opencode' | 'claude' | 'cursor';
   opencode: boolean;
   claude: boolean;
+  cursor: boolean;
 }
 
 /**

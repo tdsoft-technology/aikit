@@ -145,4 +145,38 @@ export const paths = {
   claudeAgents(project?: boolean): string {
     return join(this.claudeConfig(project ? 'project' : 'user'), 'agents');
   },
+
+  /**
+   * Get Cursor configuration directory
+   */
+  cursorConfig(scope?: 'user' | 'project'): string {
+    if (scope === 'project') {
+      return join(process.cwd(), '.cursor');
+    }
+    const base = process.platform === 'win32'
+      ? join(homedir(), 'AppData', 'Local', 'Cursor')
+      : join(homedir(), '.cursor');
+    return base;
+  },
+
+  /**
+   * Get Cursor commands directory
+   */
+  cursorCommands(project?: boolean): string {
+    return join(this.cursorConfig(project ? 'project' : 'user'), 'commands');
+  },
+
+  /**
+   * Get Cursor skills directory
+   */
+  cursorSkills(project?: boolean): string {
+    return join(this.cursorConfig(project ? 'project' : 'user'), 'skills');
+  },
+
+  /**
+   * Get Cursor agents directory
+   */
+  cursorAgents(project?: boolean): string {
+    return join(this.cursorConfig(project ? 'project' : 'user'), 'agents');
+  },
 };

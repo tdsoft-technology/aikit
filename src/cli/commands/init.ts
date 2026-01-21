@@ -23,19 +23,21 @@ import { getEnabledAdapters } from '../../platform/adapters.js';
 /**
  * Platform choice for user selection
  */
-type PlatformChoice = 'opencode' | 'claude' | 'both';
+type PlatformChoice = 'opencode' | 'claude' | 'cursor' | 'both';
 
 /**
  * Map user choice to platform config
  */
-function getPlatformConfig(choice: PlatformChoice): { opencode: boolean; claude: boolean; primary: PlatformType } {
+function getPlatformConfig(choice: PlatformChoice): { opencode: boolean; claude: boolean; cursor: boolean; primary: PlatformType } {
   switch (choice) {
     case 'opencode':
-      return { opencode: true, claude: false, primary: 'opencode' };
+      return { opencode: true, claude: false, cursor: false, primary: 'opencode' };
     case 'claude':
-      return { opencode: false, claude: true, primary: 'claude' };
+      return { opencode: false, claude: true, cursor: false, primary: 'claude' };
+    case 'cursor':
+      return { opencode: false, claude: false, cursor: true, primary: 'cursor' };
     case 'both':
-      return { opencode: true, claude: true, primary: 'opencode' };
+      return { opencode: true, claude: true, cursor: false, primary: 'opencode' };
   }
 }
 

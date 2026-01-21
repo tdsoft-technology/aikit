@@ -8,7 +8,7 @@ import { FigmaDatabase } from './database/figma-db.js';
 /**
  * Platform types supported by AIKit
  */
-export type PlatformType = 'opencode' | 'claude';
+export type PlatformType = 'opencode' | 'claude' | 'cursor';
 
 /**
  * Platform configuration schema
@@ -17,7 +17,7 @@ const PlatformConfigSchema = z.object({
   /**
    * Primary platform to use (affects default behavior)
    */
-  primary: z.enum(['opencode', 'claude']).default('opencode'),
+  primary: z.enum(['opencode', 'claude', 'cursor']).default('opencode'),
   /**
    * Enable OpenCode platform support
    * Default: true (OpenCode is the primary focus)
@@ -28,6 +28,11 @@ const PlatformConfigSchema = z.object({
    * Default: false (archived, can be re-enabled later)
    */
   claude: z.boolean().default(false),
+  /**
+   * Enable Cursor platform support
+   * Default: false (opt-in)
+   */
+  cursor: z.boolean().default(false),
 }).default({});
 
 /**
@@ -173,6 +178,9 @@ export class Config {
     }
     if (this.config.platform.claude) {
       platforms.push('claude');
+    }
+    if (this.config.platform.cursor) {
+      platforms.push('cursor');
     }
     return platforms;
   }

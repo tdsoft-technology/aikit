@@ -1,6 +1,6 @@
 {
   "name": "@tdsoft-tech/aikit",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "description": "Open-source AI coding agent toolkit for OpenCode - skills, agents, commands, tools, and plugins",
   "type": "module",
   "main": "dist/index.js",
