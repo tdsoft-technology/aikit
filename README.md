@@ -7,7 +7,9 @@
 
 ### **Open-Source AI Coding Agent Toolkit**
 
-**Works with Claude Code, OpenCode, and Cursor**
+**🚀 NEW: Google Antigravity Support!**
+
+**Works with Google Antigravity, OpenCode, Cursor, and Claude Code**
 
 [![npm version](https://badge.fury.io/js/%40tdsoft-tech%2Faikit.svg)](https://www.npmjs.com/package/@tdsoft-tech/aikit)
 [![License](https://img.shields.io/badge/License-Dual%20License-blue.svg)](LICENSE)
@@ -26,11 +28,31 @@
 
 ---
 
+## 🚀 NEW: Google Antigravity Support
+
+AIKit now supports **Google Antigravity** - Google DeepMind's next-generation AI IDE!
+
+```bash
+# Initialize with Antigravity
+aikit init antigravity
+
+# Install skills to .agent/skills/
+aikit install antigravity
+```
+
+**Why Antigravity + AIKit?**
+- 🧠 **Gemini-powered** - Leverage Google's most advanced AI
+- 📁 **Native skill format** - Skills installed as `SKILL.md` files  
+- 🔄 **Progressive disclosure** - Agent discovers skills automatically
+- ⚡ **Zero config** - Works out of the box
+
+---
+
 ## ✨ What is AIKit?
 
 **AIKit** is a powerful, open-source toolkit that extends your AI coding experience with reusable **skills**, intelligent **agents**, custom **commands**, and flexible **plugins**. It's designed to supercharge your development workflow with AI-driven automation.
 
-**Works with Claude Code (recommended), OpenCode, and Cursor.**
+**Works with Google Antigravity (featured), OpenCode, Cursor, and Claude Code.**
 
 Perfect for developers who want to:
 - 🚀 **Automate repetitive tasks** with custom commands

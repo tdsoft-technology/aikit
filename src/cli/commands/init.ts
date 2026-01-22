@@ -23,21 +23,23 @@ import { getEnabledAdapters } from '../../platform/adapters.js';
 /**
  * Platform choice for user selection
  */
-type PlatformChoice = 'opencode' | 'claude' | 'cursor' | 'both';
+type PlatformChoice = 'opencode' | 'claude' | 'cursor' | 'antigravity' | 'both';
 
 /**
  * Map user choice to platform config
  */
-function getPlatformConfig(choice: PlatformChoice): { opencode: boolean; claude: boolean; cursor: boolean; primary: PlatformType } {
+function getPlatformConfig(choice: PlatformChoice): { opencode: boolean; claude: boolean; cursor: boolean; antigravity: boolean; primary: PlatformType } {
   switch (choice) {
     case 'opencode':
-      return { opencode: true, claude: false, cursor: false, primary: 'opencode' };
+      return { opencode: true, claude: false, cursor: false, antigravity: false, primary: 'opencode' };
     case 'claude':
-      return { opencode: false, claude: true, cursor: false, primary: 'claude' };
+      return { opencode: false, claude: true, cursor: false, antigravity: false, primary: 'claude' };
     case 'cursor':
-      return { opencode: false, claude: false, cursor: true, primary: 'cursor' };
+      return { opencode: false, claude: false, cursor: true, antigravity: false, primary: 'cursor' };
+    case 'antigravity':
+      return { opencode: false, claude: false, cursor: false, antigravity: true, primary: 'antigravity' };
     case 'both':
-      return { opencode: true, claude: true, cursor: false, primary: 'opencode' };
+      return { opencode: true, claude: true, cursor: false, antigravity: false, primary: 'opencode' };
   }
 }
 
@@ -50,6 +52,7 @@ export function registerInitCommand(program: Command): void {
     .option('--opencode', 'Use OpenCode only')
     .option('--claude', 'Use Claude Code only')
     .option('--cursor', 'Use Cursor only')
+    .option('--antigravity', 'Use Google Antigravity only')
     .option('--both', 'Use both OpenCode and Claude Code')
     .action(async (platformArg, options) => {
       const configDir = options.global ? paths.globalConfig() : paths.projectConfig();
@@ -67,6 +70,8 @@ export function registerInitCommand(program: Command): void {
           platformChoice = 'claude';
         } else if (options.cursor) {
           platformChoice = 'cursor';
+        } else if (options.antigravity) {
+          platformChoice = 'antigravity';
         } else if (options.both) {
           platformChoice = 'both';
         } else if (platformArg) {
@@ -76,6 +81,8 @@ export function registerInitCommand(program: Command): void {
             platformChoice = 'cursor';
           } else if (mapped === CliPlatform.CLAUDE) {
             platformChoice = 'claude';
+          } else if (mapped === CliPlatform.ANTIGRAVITY) {
+            platformChoice = 'antigravity';
           } else {
             platformChoice = 'opencode';
           }
@@ -92,6 +99,10 @@ export function registerInitCommand(program: Command): void {
                 {
                   name: `${chalk.green('●')} OpenCode ${chalk.gray('(recommended)')}`,
                   value: 'opencode',
+                },
+                {
+                  name: `${chalk.blue('●')} Google Antigravity ${chalk.blue('(NEW)')}`,
+                  value: 'antigravity',
                 },
                 {
                   name: `${chalk.yellow('●')} Claude Code ${chalk.yellow('(Beta)')}`,
@@ -121,6 +132,10 @@ export function registerInitCommand(program: Command): void {
             console.log(chalk.magenta('\n⚠️  Cursor support is in Beta'));
             console.log(chalk.gray('   Some features may be limited or experimental.\n'));
           }
+          if (platformChoice === 'antigravity') {
+            console.log(chalk.blue('\n🚀 Google Antigravity - NEW!'));
+            console.log(chalk.gray('   Skills will be installed to .agent/skills/\n'));
+          }
         }
 
         // Get platform config based on choice
@@ -132,10 +147,11 @@ export function registerInitCommand(program: Command): void {
 
         // Show selected platforms
         console.log(chalk.bold('\n📋 Platform Configuration:'));
-        console.log(`   OpenCode:    ${platformConfig.opencode ? chalk.green('enabled') : chalk.gray('disabled')}`);
-        console.log(`   Claude Code: ${platformConfig.claude ? chalk.yellow('enabled (Beta)') : chalk.gray('disabled')}`);
-        console.log(`   Cursor:      ${platformConfig.cursor ? chalk.magenta('enabled (Beta)') : chalk.gray('disabled')}`);
-        console.log(`   Primary:     ${chalk.cyan(platformConfig.primary)}\n`);
+        console.log(`   OpenCode:      ${platformConfig.opencode ? chalk.green('enabled') : chalk.gray('disabled')}`);
+        console.log(`   Antigravity:   ${platformConfig.antigravity ? chalk.blue('enabled (NEW)') : chalk.gray('disabled')}`);
+        console.log(`   Claude Code:   ${platformConfig.claude ? chalk.yellow('enabled (Beta)') : chalk.gray('disabled')}`);
+        console.log(`   Cursor:        ${platformConfig.cursor ? chalk.magenta('enabled (Beta)') : chalk.gray('disabled')}`);
+        console.log(`   Primary:       ${chalk.cyan(platformConfig.primary)}\n`);
 
         if (!options.global) {
           // Step 2: Load config and sync skills

@@ -28,6 +28,8 @@ function cliPlatformToType(platform: CliPlatform): PlatformType {
       return 'claude';
     case CliPlatform.CURSOR:
       return 'cursor';
+    case CliPlatform.ANTIGRAVITY:
+      return 'antigravity';
     default:
       return 'opencode';
   }
@@ -48,6 +50,7 @@ export function registerInstallCommand(program: Command): void {
         logger.info('Platform Configuration:');
         logger.info(`  Primary: ${config.getPrimaryPlatform()}`);
         logger.info(`  OpenCode: ${config.isPlatformEnabled('opencode') ? 'enabled' : 'disabled'}`);
+        logger.info(`  Antigravity: ${config.isPlatformEnabled('antigravity') ? 'enabled' : 'disabled'}`);
         logger.info(`  Claude Code: ${config.isPlatformEnabled('claude') ? 'enabled (archived)' : 'disabled (archived)'}`);
         logger.info(`  Cursor: ${config.isPlatformEnabled('cursor') ? 'enabled' : 'disabled'}`);
         logger.info('');

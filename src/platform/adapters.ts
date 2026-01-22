@@ -2,6 +2,7 @@ import { CliPlatform } from '../utils/cli-detector.js';
 import { OpenCodeAdapter } from './opencode-adapter.js';
 import { ClaudeAdapter } from './claude-adapter.js';
 import { CursorAdapter } from './cursor-adapter.js';
+import { AntigravityAdapter } from './antigravity-adapter.js';
 import { PlatformAdapter } from './types.js';
 import { Config, PlatformType } from '../core/config.js';
 
@@ -16,6 +17,8 @@ export function createAdapter(platform: CliPlatform): PlatformAdapter {
       return new ClaudeAdapter();
     case CliPlatform.CURSOR:
       return new CursorAdapter();
+    case CliPlatform.ANTIGRAVITY:
+      return new AntigravityAdapter();
     default:
       throw new Error(`Unsupported platform: ${platform}`);
   }
@@ -32,6 +35,8 @@ function platformTypeToCliPlatform(type: PlatformType): CliPlatform {
       return CliPlatform.CLAUDE;
     case 'cursor':
       return CliPlatform.CURSOR;
+    case 'antigravity':
+      return CliPlatform.ANTIGRAVITY;
   }
 }
 
@@ -68,4 +73,5 @@ export const SUPPORTED_PLATFORMS = [
   { platform: CliPlatform.OPENCODE, name: 'OpenCode', configKey: 'opencode' as PlatformType },
   { platform: CliPlatform.CLAUDE, name: 'Claude Code CLI', configKey: 'claude' as PlatformType },
   { platform: CliPlatform.CURSOR, name: 'Cursor', configKey: 'cursor' as PlatformType },
+  { platform: CliPlatform.ANTIGRAVITY, name: 'Google Antigravity', configKey: 'antigravity' as PlatformType },
 ] as const;

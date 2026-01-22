@@ -11,6 +11,7 @@ export enum CliTool {
   CLAUDE = 'claude',
   GITHUB = 'github',
   CURSOR = 'cursor',
+  ANTIGRAVITY = 'antigravity',
 }
 
 /**
@@ -21,6 +22,7 @@ export enum CliPlatform {
   CLAUDE = 'claude',
   CODEX = 'codex',
   CURSOR = 'cursor',
+  ANTIGRAVITY = 'antigravity',
 }
 
 /**
@@ -191,6 +193,40 @@ export class CliDetector {
   }
 
   /**
+   * Check if Antigravity is installed
+   * Antigravity uses .agent/ directory for workspace skills
+   * and ~/.gemini/antigravity/ for global configuration
+   */
+  static async checkAntigravity(): Promise<CliToolInfo> {
+    try {
+      // Check for global Gemini/Antigravity directory
+      const globalPath = join(homedir(), '.gemini', 'antigravity');
+      // Check for project-level .agent directory
+      const projectPath = join(process.cwd(), '.agent');
+      
+      const hasGlobal = existsSync(globalPath);
+      const hasProject = existsSync(projectPath);
+      const installed = hasGlobal || hasProject;
+
+      return {
+        name: CliTool.ANTIGRAVITY,
+        displayName: 'Google Antigravity',
+        detected: true,
+        installed,
+        version: installed ? 'installed' : undefined,
+        configPath: hasGlobal ? globalPath : projectPath,
+      };
+    } catch {
+      return {
+        name: CliTool.ANTIGRAVITY,
+        displayName: 'Google Antigravity',
+        detected: false,
+        installed: false,
+      };
+    }
+  }
+
+  /**
    * Check all supported CLIs
    */
   static async checkAll(): Promise<CliToolInfo[]> {
@@ -200,6 +236,7 @@ export class CliDetector {
     results.push(await this.checkClaude());
     results.push(await this.checkGitHub());
     results.push(await this.checkCursor());
+    results.push(await this.checkAntigravity());
 
     return results;
   }
@@ -257,6 +294,17 @@ export class CliDetector {
       configPath: cursorPath,
     });
 
+    // Check Antigravity
+    const antigravityGlobalPath = join(homedir(), '.gemini', 'antigravity');
+    const antigravityProjectPath = join(process.cwd(), '.agent');
+    const antigravityInstalled = existsSync(antigravityGlobalPath) || existsSync(antigravityProjectPath);
+    platforms.push({
+      platform: CliPlatform.ANTIGRAVITY,
+      displayName: 'Google Antigravity',
+      installed: antigravityInstalled,
+      configPath: antigravityInstalled ? (existsSync(antigravityGlobalPath) ? antigravityGlobalPath : antigravityProjectPath) : antigravityProjectPath,
+    });
+
     return platforms;
   }
 
@@ -280,6 +328,8 @@ export class CliDetector {
       return CliPlatform.CURSOR;
     } else if (normalized === 'codex') {
       return CliPlatform.CODEX;
+    } else if (normalized === 'antigravity' || normalized === 'gemini' || normalized === 'google-antigravity') {
+      return CliPlatform.ANTIGRAVITY;
     }
     throw new Error(`Unknown platform: ${name}`);
   }
