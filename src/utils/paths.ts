@@ -179,4 +179,36 @@ export const paths = {
   cursorAgents(project?: boolean): string {
     return join(this.cursorConfig(project ? 'project' : 'user'), 'agents');
   },
+
+  /**
+   * Get the Google Antigravity configuration directory
+   * Project: .agent/
+   * Global: ~/.gemini/antigravity/
+   */
+  antigravityConfig(scope?: 'user' | 'project'): string {
+    if (scope === 'project') {
+      return join(process.cwd(), '.agent');
+    }
+    return join(homedir(), '.gemini', 'antigravity');
+  },
+
+  /**
+   * Get Antigravity skills directory
+   * Project: .agent/skills/
+   * Global: ~/.gemini/antigravity/global_skills/
+   */
+  antigravitySkills(project?: boolean): string {
+    if (project) {
+      return join(process.cwd(), '.agent', 'skills');
+    }
+    return join(homedir(), '.gemini', 'antigravity', 'global_skills');
+  },
+
+  /**
+   * Get Antigravity agents directory (skills are used for everything in Antigravity)
+   */
+  antigravityAgents(project?: boolean): string {
+    // Antigravity uses skills for agents too
+    return this.antigravitySkills(project);
+  },
 };

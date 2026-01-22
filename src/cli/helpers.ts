@@ -28,10 +28,11 @@ import chalk from 'chalk';
  * Platform configuration for initialization
  */
 export interface PlatformConfig {
-  primary: 'opencode' | 'claude' | 'cursor';
+  primary: 'opencode' | 'claude' | 'cursor' | 'antigravity';
   opencode: boolean;
   claude: boolean;
   cursor: boolean;
+  antigravity?: boolean;
 }
 
 /**
@@ -61,8 +62,20 @@ export async function initializeConfig(
     'memory/research',
   ];
   
-  for (const dir of dirs) {
-    await mkdir(join(configDir, dir), { recursive: true });
+  try {
+    for (const dir of dirs) {
+      await mkdir(join(configDir, dir), { recursive: true });
+    }
+  } catch (error: any) {
+    if (error.code === 'EACCES') {
+      const parentDir = join(configDir, '..');
+      throw new Error(
+        `Permission denied: Cannot create ${configDir}\n` +
+        `The parent directory may be owned by another user.\n` +
+        `Try: sudo chown -R $USER:staff "${parentDir}" or run in a different directory.`
+      );
+    }
+    throw error;
   }
   
   // Use provided platform config or defaults

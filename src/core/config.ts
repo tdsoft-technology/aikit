@@ -8,7 +8,7 @@ import { FigmaDatabase } from './database/figma-db.js';
 /**
  * Platform types supported by AIKit
  */
-export type PlatformType = 'opencode' | 'claude' | 'cursor';
+export type PlatformType = 'opencode' | 'claude' | 'cursor' | 'antigravity';
 
 /**
  * Platform configuration schema
@@ -17,7 +17,7 @@ const PlatformConfigSchema = z.object({
   /**
    * Primary platform to use (affects default behavior)
    */
-  primary: z.enum(['opencode', 'claude', 'cursor']).default('opencode'),
+  primary: z.enum(['opencode', 'claude', 'cursor', 'antigravity']).default('opencode'),
   /**
    * Enable OpenCode platform support
    * Default: true (OpenCode is the primary focus)
@@ -33,6 +33,11 @@ const PlatformConfigSchema = z.object({
    * Default: false (opt-in)
    */
   cursor: z.boolean().default(false),
+  /**
+   * Enable Google Antigravity platform support
+   * Default: false (opt-in)
+   */
+  antigravity: z.boolean().default(false),
 }).default({});
 
 /**
@@ -181,6 +186,9 @@ export class Config {
     }
     if (this.config.platform.cursor) {
       platforms.push('cursor');
+    }
+    if (this.config.platform.antigravity) {
+      platforms.push('antigravity');
     }
     return platforms;
   }
